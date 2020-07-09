@@ -16,7 +16,6 @@ for b in range(0, 256):
             cur_rank += 1
         pos = 256 * i + b
         result[pos] = cur_rank
-            
 
 print(result)
 print("Done.")

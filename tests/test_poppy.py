@@ -1,10 +1,9 @@
 import math
-import random
-from typing import Callable, List
+from typing import List
 
 import pytest
 from bitarray import bitarray
-from hypothesis import HealthCheck, assume, example, given, settings
+from hypothesis import assume, example, given, settings
 from hypothesis import strategies as st
 
 from succinct.bits import popcount
@@ -12,12 +11,12 @@ from succinct.poppy import Poppy
 
 
 @given(
-    initial_value_block_0 = st.integers(min_value=0, max_value=512),
-    initial_value_block_1 = st.integers(min_value=0, max_value=512),
-    initial_value_block_2 = st.integers(min_value=0, max_value=512),
-    add_0 = st.integers(min_value=0, max_value=512),
-    add_1 = st.integers(min_value=0, max_value=512),
-    add_2 = st.integers(min_value=0, max_value=512)
+    initial_value_block_0=st.integers(min_value=0, max_value=512),
+    initial_value_block_1=st.integers(min_value=0, max_value=512),
+    initial_value_block_2=st.integers(min_value=0, max_value=512),
+    add_0=st.integers(min_value=0, max_value=512),
+    add_1=st.integers(min_value=0, max_value=512),
+    add_2=st.integers(min_value=0, max_value=512)
 )
 @settings(max_examples=1000)
 def test_relative_count(
@@ -37,15 +36,15 @@ def test_relative_count(
     ]
 
     adds = [add_0, add_1, add_2]
-    
+
     packed_count = 0
     for basic_block_index, initial_value in enumerate(initial_values):
         packed_count = Poppy._add_relative_count(
             basic_block_index=basic_block_index,
             packed_relative_counts=packed_count,
-            pop_count=initial_value     
+            pop_count=initial_value
         )
-    
+
     for basic_block_index, initial_value in enumerate(initial_values):
         assert Poppy._get_relative_count(
             basic_block_index=basic_block_index,
@@ -56,7 +55,7 @@ def test_relative_count(
         packed_count = Poppy._add_relative_count(
             basic_block_index=basic_block_index,
             packed_relative_counts=packed_count,
-            pop_count=add     
+            pop_count=add
         )
 
     for basic_block_index, (initial_value, add) in enumerate(zip(initial_values, adds)):
@@ -98,7 +97,7 @@ def test_l0_layer(byte_value: int, num_bytes: int) -> None:
     "byte_value", [42, 255]
 )
 @pytest.mark.parametrize(
-    "num_bytes", [16, (1<<10), (1 << 29) + 8, ((1 << 29) + 8) * 4]
+    "num_bytes", [16, (1 << 10), (1 << 29) + 8, ((1 << 29) + 8) * 4]
 )
 @pytest.mark.slow
 def test_l1_layer(byte_value: int, num_bytes: int) -> None:
@@ -107,7 +106,7 @@ def test_l1_layer(byte_value: int, num_bytes: int) -> None:
 
     # Manually compute the popcount sums here.
     level_1_size = math.ceil(len(bits) / 2048)
-    level_1: List[int] = [0] *  level_1_size
+    level_1: List[int] = [0] * level_1_size
 
     v = memoryview(bits)
     for byte_offset in range(0, len(v), 8):
@@ -115,7 +114,7 @@ def test_l1_layer(byte_value: int, num_bytes: int) -> None:
         if level_1_idx < len(level_1):
             level_1[level_1_idx] += popcount(v[byte_offset:byte_offset + 8])
 
-    for byte_offset in range(0, num_bytes, 1<<29):
+    for byte_offset in range(0, num_bytes, 1 << 29):
         level_1_idx = byte_offset // 256
         level_1[level_1_idx] = 0
 
@@ -175,11 +174,11 @@ def test_rank(bb: bytes) -> None:
 @pytest.mark.parametrize(
     "num_bytes,step_size", [
         (16, 1),
-        (1<<5, 1),
-        (1<<10, 1),
-        (1<<15, 1),
-        (1<<20, 133),
-        ((1<<29) + 8 * 4, 21333)
+        (1 << 5, 1),
+        (1 << 10, 1),
+        (1 << 15, 1),
+        (1 << 20, 133),
+        ((1 << 29) + 8 * 4, 21333)
     ]
 )
 @pytest.mark.slow
@@ -205,7 +204,7 @@ def test_rank_big(byte_value: int, num_bytes: int, step_size: int) -> None:
 @pytest.mark.slow
 def test_rank_boundary() -> None:
     bits = bitarray()
-    bits.frombytes(bytes([255]) * ((1<<29) + 32))
+    bits.frombytes(bytes([255]) * ((1 << 29) + 32))
     poppy = Poppy(bits)
     i = 1 << 32
     assert poppy.rank(i) == i + 1
@@ -216,7 +215,7 @@ def test_rank_boundary() -> None:
 )
 @pytest.mark.parametrize(
     "num_bytes", [
-        16, (1<<10), (1<<11), (1 << 29) + 8, ((1 << 29) + 8) * 4
+        16, (1 << 10), (1 << 11), (1 << 29) + 8, ((1 << 29) + 8) * 4
     ]
 )
 @pytest.mark.slow
@@ -228,7 +227,7 @@ def test_select_structure(byte_value: int, num_bytes: int) -> None:
     for level_0_idx, sampling_answers in enumerate(poppy._select_structure):
         for i, sampling_answer in enumerate(sampling_answers):
             sum_left = poppy._level_0[level_0_idx]
-            assert (poppy.rank(sampling_answer + ((1<<32) * level_0_idx)) - sum_left) == (i * 8192 + 1)
+            assert (poppy.rank(sampling_answer + ((1 << 32) * level_0_idx)) - sum_left) == (i * 8192 + 1)
 
 
 @given(st.binary(min_size=8, max_size=10000))
@@ -245,7 +244,7 @@ def test_select_poppy(bb: bytes) -> None:
     for i in range(len(bits)):
         if bits[i]:
             select_answers.append(i)
-    
+
     for i, pos in enumerate(select_answers):
         assert poppy.select(i) == pos
 
@@ -256,11 +255,11 @@ def test_select_poppy(bb: bytes) -> None:
 @pytest.mark.parametrize(
     "num_bytes,step_size", [
         (16, 1),
-        (1<<5, 1),
-        (1<<10, 1),
-        (1<<15, 1),
-        (1<<20, 133),
-        ((1<<29) + 8 * 4, 21333)
+        (1 << 5, 1),
+        (1 << 10, 1),
+        (1 << 15, 1),
+        (1 << 20, 133),
+        ((1 << 29) + 8 * 4, 21333)
     ]
 )
 @pytest.mark.slow

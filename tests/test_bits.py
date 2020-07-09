@@ -34,12 +34,9 @@ def test_select(bb: bytes) -> None:
     bits = bitarray()
     bits.frombytes(bb)
 
-    print(popcount(bb))
-    print(bits)
     cur_rank = 0
     for i, b in enumerate(bits):
         if b:
-            print(f"Selecting {i}")
             assert select(bb, cur_rank) == i
             cur_rank += 1
 
@@ -50,7 +47,6 @@ def test_select(bb: bytes) -> None:
 def test_rank_in_byte(b: int) -> None:
     bits = bitarray()
     bits.frombytes(bytes([b]))
-    cur_rank = 0
 
     for i in range(len(bits)):
         assert RANK_IN_BYTE[256 * i + b] == sum(bits[0:(i + 1)])

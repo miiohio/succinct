@@ -1,11 +1,10 @@
 import math
-import struct
 from array import array
 from bitarray import bitarray
 from typing import List, Optional, Tuple
 from typing_extensions import Final
 
-from succinct.bits import popcount, _popcount, select, RANK_IN_BYTE, SELECT_IN_BYTE
+from succinct.bits import popcount, select, RANK_IN_BYTE, SELECT_IN_BYTE
 
 
 SELECT_SAMPLING_STEP: Final = 8192
@@ -29,9 +28,9 @@ class Poppy:
         self._bit_array = bit_array
 
         # HACK: For now, pad the bit array until it is a multiple of 8 bytes
-        # in length
-        while len(self._bit_array) % 8 != 0:
-            self._bit_array.append(0)
+        # (64 bits) in length
+        while len(self._bit_array) % 64 != 0:
+            self._bit_array.append(False)
 
         self._memory_view = memoryview(bit_array)
         self._level_0, self._level_1 = self._initialize_rank_structure()
@@ -55,7 +54,7 @@ class Poppy:
 
         for byte_offset in range(0, bit_array_byte_length, 8):
             pop_count = popcount(self._memory_view[byte_offset:byte_offset + 8])
-            
+
             # Update the Level 0 cumulative sum
             level_0_idx = 1 + byte_offset // (1 << 29)
             if level_0_idx < level_0_size:
@@ -88,14 +87,14 @@ class Poppy:
         # 1. Zero out the level_1 cumulative sums for the blocks that lie at
         # the beginning of an L0 upper block. (If we don't do that, the sums
         # could overflow.)
-        for byte_offset in range(0, bit_array_byte_length, 1<<29):
+        for byte_offset in range(0, bit_array_byte_length, 1 << 29):
             level_1_idx = 2 * (byte_offset // 256)
             level_1[level_1_idx] = 0
 
         # 2. calculate the cumulative sums for level_1.
         byte_offset = 0
         for i in range(0, level_1_size, 2):
-            if byte_offset % (1<<29) != 0:
+            if byte_offset % (1 << 29) != 0:
                 level_1[i] += level_1[i - 2]
             byte_offset += 256
 
@@ -111,7 +110,7 @@ class Poppy:
         select_structure: "List[array]" = []
         for level_0_idx, level_0_sum in enumerate(self._level_0):
             rank_start = level_0_sum
-            
+
             rank_end = self.rank(
                 min(
                     (level_0_idx + 1) * (1 << 32) - 1,
@@ -127,8 +126,8 @@ class Poppy:
             popcount_sum = 0
             current_select_target = 0
             for byte_offset in range(
-                (1<<29) * level_0_idx,
-                min(bit_array_byte_length, (1<<29) * (level_0_idx + 1)),
+                (1 << 29) * level_0_idx,
+                min(bit_array_byte_length, (1 << 29) * (level_0_idx + 1)),
                 8
             ):
                 old_sum = popcount_sum
@@ -139,10 +138,10 @@ class Poppy:
                         current_select_target - old_sum
                     )
                     select_structure[level_0_idx][(current_select_target) // 8192] = (
-                        8 * (byte_offset - ((1<<29) * level_0_idx)) + select_in_word
+                        8 * (byte_offset - ((1 << 29) * level_0_idx)) + select_in_word
                     )
                     current_select_target += 8192
-            
+
             for i in range(len(select_structure[level_0_idx])):
                 assert select_structure[level_0_idx][i] >= 8192 * i
         return select_structure
@@ -211,7 +210,7 @@ class Poppy:
                 packed_relative_counts=packed_relative_counts
             )
             left_block_idx += 1
-        
+
         # Now do a manual popcount within the current basic block.
         start_bit = 8 * (byte_offset // 64) * 64
         end_bit = i + 1
@@ -240,7 +239,7 @@ class Poppy:
         Returns the position of the 1-bit having the provided rank.
         If no such bit exists, -1 is returned.
         """
-        
+
         # Use binary search to find the upper (L0) block that contains the
         # bit with the target rank.
         # level_0_idx = bisect.bisect_right(self._level_0, rank)
@@ -264,14 +263,14 @@ class Poppy:
             if x < len(sampling_answers):
                 return sampling_answers[x]
             return -1
-        
+
         # Otherwise we have to search.
         search_start_bit = sampling_answers[x]
         if x + 1 < len(sampling_answers):
             search_end_bit = sampling_answers[x + 1]
         else:
-            search_end_bit = min(len(self._bit_array) - level_0_idx, (1<<32) * (level_0_idx + 1))
-        
+            search_end_bit = min(len(self._bit_array) - level_0_idx, (1 << 32) * (level_0_idx + 1))
+
         # Do a binary search for the L1 block that contains the 1-bit
         # with the desired relative rank.
         level_1_idx = self._binary_search_level_1(
@@ -297,7 +296,7 @@ class Poppy:
             relative_rank -= relative_count
 
         # Now search within the 64-byte basic block.
-        byte_offset = 64 * basic_block_idx + 256 * (level_1_idx // 2) + (1<<29) * level_0_idx
+        byte_offset = 64 * basic_block_idx + 256 * (level_1_idx // 2) + (1 << 29) * level_0_idx
         start_bit = 8 * (byte_offset // 64) * 64
         end_bit = min(
             start_bit + 2048,
@@ -315,7 +314,7 @@ class Poppy:
                     self._memory_view[start_byte:(start_byte + 8)],
                     relative_rank
                 )
-            
+
             relative_rank -= rank
             start_bit += 64
 

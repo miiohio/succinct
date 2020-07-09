@@ -18,9 +18,11 @@ setup(
     author_email="drwjharvey@gmail.com",
     description="Succinct, compact, and compressed data structures for data-intensive applications",
     url="https://github.com/miiohio/succinct",
-    python_requires=">=3.7.6",
     packages=["succinct"] + find_namespace_packages(include=["succinct.*"]),
     package_data={"succinct": ["VERSION", "py.typed"]},
-    install_requires=[],
+    install_requires=[
+        "bitarray >= 1.3.0",
+        "typing_extensions >= 3.7"
+    ],
     **kwds
 )

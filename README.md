@@ -25,6 +25,15 @@ library.
 
 * [LOUDS](https://users.dcc.uchile.cl/~gnavarro/algoritmos/ps/alenex10.pdf) representation of binary tree topology, using (in theory) slightly more than two bits per tree node while providing efficient tree navigation.
 
+Installation
+---------------
+At the command line:
+```bash
+$ pip install succinct
+```
+
+Alternatively, you can install `succinct` from source by cloning this repo and running the provided `setup.sh` script.
+
 Statement of public good
 ------------------------
 This project is made possible by [The Mathematics and Informatics Institute of Ohio](#). The author gratefully acknowledges [Root Insurance Company](https://www.joinroot.com/) for providing 12 "hack days" per year for engineers to work on projects such as this one.

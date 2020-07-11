@@ -168,6 +168,20 @@ def test_rank(bb: bytes) -> None:
         assert poppy.rank(i) == sum(bits[0:(i + 1)])
 
 
+@given(st.binary(min_size=8, max_size=10000))
+@settings(max_examples=1000)
+@example(bb=bytes([42] * 136))
+def test_rank_zero(bb: bytes) -> None:
+    assume(len(bb) % 8 == 0)
+
+    bits = bitarray()
+    bits.frombytes(bb)
+    poppy = Poppy(bits)
+
+    for i in range(len(bits)):
+        assert poppy.rank_zero(i) == sum(1 - int(b) for b in bits[0:(i + 1)])
+
+
 @pytest.mark.parametrize(
     "byte_value", [42, 255]
 )
@@ -274,3 +288,36 @@ def test_select_poppy_big(byte_value: int, num_bytes: int, step_size: int) -> No
             if i % step_size == 0:
                 assert poppy.select(a) == i
             a += 1
+
+
+@given(st.binary(min_size=8, max_size=1000))
+@settings(max_examples=1000)
+@example(bb=bytes([42] * 136))
+def test_getitem(bb: bytes) -> None:
+    assume(len(bb) % 8 == 0)
+
+    bits = bitarray()
+    bits.frombytes(bb)
+    poppy = Poppy(bits)
+
+    for i in range(len(bits)):
+        assert poppy[i] == bits[i]
+
+
+@given(st.binary(min_size=8, max_size=10000))
+@settings(max_examples=1000)
+@example(bb=bytes([42] * 136))
+def test_select_zero_poppy(bb: bytes) -> None:
+    assume(len(bb) % 8 == 0)
+
+    bits = bitarray()
+    bits.frombytes(bb)
+    poppy = Poppy(bits)
+
+    select_zero_answers: List[int] = []
+    for i in range(len(bits)):
+        if not bits[i]:
+            select_zero_answers.append(i)
+
+    for i, pos in enumerate(select_zero_answers):
+        assert poppy.select_zero(i) == pos

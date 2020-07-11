@@ -234,6 +234,12 @@ class Poppy:
 
         return sum_rank
 
+    def rank_zero(self, i: int) -> int:
+        """
+        Returns the number of 0 bits up to and including position i.
+        """
+        return i - self.rank(i) + 1
+
     def select(self, rank: int) -> int:
         """
         Returns the position of the 1-bit having the provided rank.
@@ -374,3 +380,24 @@ class Poppy:
                 return 2 * mid
 
         return -((high) + 1) * 2
+
+    def __getitem__(self, key: int) -> bool:
+        return self._bit_array[key]
+
+    def __len__(self) -> int:
+        return len(self._bit_array)
+
+    def select_zero(self, rank_zero: int) -> int:
+        low = 0
+        high = len(self._bit_array) - 1
+
+        while low <= high:
+            mid = (low + high) // 2
+            rz = self.rank_zero(mid)
+            if (not self[mid]) and rz == rank_zero + 1:
+                return mid
+            elif rz <= rank_zero:
+                low = mid + 1
+            else:
+                high = mid - 1
+        return -1

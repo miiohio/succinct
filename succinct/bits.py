@@ -72,6 +72,7 @@ def _popcount(n: int) -> int:
 
 
 def select(bb: bytes, rank: int) -> int:
+    assert 0 <= rank < 64
     x = struct.unpack('Q' * (len(bb) // 8), bb)[0]
     return _select(x, rank)
 

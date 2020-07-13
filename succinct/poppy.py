@@ -1,7 +1,7 @@
 import math
 from array import array
 from bitarray import bitarray
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from typing_extensions import Final
 
 from succinct.bits import popcount, select, RANK_IN_BYTE, SELECT_IN_BYTE
@@ -25,6 +25,7 @@ class Poppy:
       implemented in C. The Python version may be slower. Shrug!)
     """
     def __init__(self, bit_array: bitarray) -> None:
+        self._size = len(bit_array)
         self._bit_array = bit_array
 
         # HACK: For now, pad the bit array until it is a multiple of 8 bytes
@@ -252,12 +253,14 @@ class Poppy:
         level_0_idx = self._binary_search_level_0(rank)
         if level_0_idx < 0:
             level_0_idx = -(level_0_idx) - 1
+            assert level_0_idx >= 0
 
         # Maintain an (absolute) bit range where the bit with the target rank
         # could be. This range if half open: [low, high)
         # low = (1<<32) * level_0_idx
         # high = min((1 << 32) * (level_0_idx + 1), len(self._bit_array))
         relative_rank = rank - self._level_0[level_0_idx]
+        assert relative_rank >= 0
 
         # Search the sampling answers corresponding to level_0_idx
         # Use them to find the lower block that contains the target
@@ -275,7 +278,7 @@ class Poppy:
         if x + 1 < len(sampling_answers):
             search_end_bit = sampling_answers[x + 1]
         else:
-            search_end_bit = min(len(self._bit_array) - level_0_idx, (1 << 32) * (level_0_idx + 1))
+            search_end_bit = min(len(self) - 1 - level_0_idx, (1 << 32) * (level_0_idx + 1))
 
         # Do a binary search for the L1 block that contains the 1-bit
         # with the desired relative rank.
@@ -288,6 +291,7 @@ class Poppy:
             level_1_idx = -(level_1_idx) - 2
 
         relative_rank -= self._level_1[level_1_idx]
+        assert relative_rank >= 0
         packed_relative_counts = self._level_1[level_1_idx + 1]
 
         for basic_block_idx in range(0, 4):
@@ -300,13 +304,14 @@ class Poppy:
             if relative_rank < relative_count:
                 break
             relative_rank -= relative_count
+            assert relative_rank >= 0
 
         # Now search within the 64-byte basic block.
         byte_offset = 64 * basic_block_idx + 256 * (level_1_idx // 2) + (1 << 29) * level_0_idx
         start_bit = 8 * (byte_offset // 64) * 64
         end_bit = min(
-            start_bit + 2048,
-            len(self._bit_array) - 1,
+            start_bit + 4096,
+            len(self) - 1,
             (1 << 32) * (level_0_idx + 1) - 1
         )
 
@@ -322,6 +327,7 @@ class Poppy:
                 )
 
             relative_rank -= rank
+            assert relative_rank >= 0
             start_bit += 64
 
         while start_bit + 8 <= end_bit:
@@ -332,6 +338,7 @@ class Poppy:
                     256 * (relative_rank) + self._memory_view[start_byte]
                 ]
             relative_rank -= rank
+            assert relative_rank >= 0
             start_bit += 8
 
         if start_bit < end_bit:
@@ -343,6 +350,7 @@ class Poppy:
                     256 * (relative_rank) + self._memory_view[start_byte]
                 ]
             relative_rank -= rank
+            assert relative_rank >= 0
 
         if relative_rank == 0 and self._bit_array[end_bit]:
             return end_bit
@@ -382,14 +390,16 @@ class Poppy:
         return -((high) + 1) * 2
 
     def __getitem__(self, key: int) -> bool:
+        if not (0 <= key < self._size):
+            raise IndexError(f"Index out of bounds: {key}")
         return self._bit_array[key]
 
     def __len__(self) -> int:
-        return len(self._bit_array)
+        return self._size
 
     def select_zero(self, rank_zero: int) -> int:
         low = 0
-        high = len(self._bit_array) - 1
+        high = len(self) - 1
 
         while low <= high:
             mid = (low + high) // 2
@@ -401,3 +411,12 @@ class Poppy:
             else:
                 high = mid - 1
         return -1
+
+    def __getstate__(self) -> Dict[str, Any]:
+        state = dict(self.__dict__)
+        del state['_memory_view']
+        return state
+
+    def __setstate__(self, d: Dict[str, Any]) -> None:
+        self.__dict__ = d
+        self._memory_view = memoryview(self._bit_array)

@@ -1,23 +1,33 @@
 from bitarray import bitarray
 import math
-from typing import Iterator
+from typing import Iterator, Optional
 
 from succinct.poppy import Poppy
 
 
 class EliasFano:
-    def __init__(self, values: Iterator[int], *, num_values: int, max_value: int) -> None:
+    def __init__(
+        self,
+        values: Iterator[int],
+        *,
+        num_values: int,
+        max_value: int,
+        num_lower_bits: Optional[int] = None
+    ) -> None:
         """
         Compressed representation of a monotonically-increasing sequence of
         nonnegative integers.
         """
+
+        self._size = num_values
 
         # Number of bits needed to store the largest value.
         w = math.ceil(math.log2(max(1, max_value)))
 
         # Number of lower-order bits of each value to store in the lower
         # bit vector.
-        num_lower_bits = math.floor(max_value / num_values)
+        if num_lower_bits is None:
+            num_lower_bits = math.floor(max_value / num_values)
         self._num_lower_bits = num_lower_bits
         if num_lower_bits != 0:
             self._lower_bits = bitarray()
@@ -57,6 +67,8 @@ class EliasFano:
         self._upper_poppy = Poppy(self._upper_bits)
 
     def __getitem__(self, key: int) -> int:
+        if not (0 <= key < self._size):
+            raise IndexError(f"Index out of bounds: {key}")
         if self._lower_bits is not None:
             lower_offset = key * self._num_lower_bits
             lower = int(self._lower_bits[lower_offset:lower_offset + self._num_lower_bits].to01(), 2)
@@ -65,3 +77,10 @@ class EliasFano:
 
         upper = self._upper_poppy.select(key) - key
         return (upper << self._num_lower_bits) | lower
+
+    def __len__(self) -> int:
+        return self._size
+
+    def __iter__(self) -> Iterator[int]:
+        for i in range(self._size):
+            yield self[i]

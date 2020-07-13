@@ -7,7 +7,7 @@ from typing_extensions import Protocol
 
 from bitarray import bitarray
 from succinct.louds import LoudsBinaryTree
-from succinct.poppy import Poppy
+from succinct.compressed_runs_bit_array import CompressedRunsBitArray
 
 
 class IndexedIntSequence(Protocol):
@@ -78,6 +78,7 @@ class Run(HuffmanTreeNode):
 
 class Permutation:
     def __init__(self, values: IndexedIntSequence) -> None:
+        self._size = len(values)
         runs = self._extract_runs(values)
         self._build_huffman_tree(values, runs)
 
@@ -87,12 +88,7 @@ class Permutation:
         for i in range(1, len(values)):
             if values[i] < values[i - 1]:
                 run_starts.append(i)
-
-        run_starts_bitarray = bitarray(len(values))
-        run_starts_bitarray.setall(False)
-        for start in run_starts:
-            run_starts_bitarray[start] = True
-        self._run_starts = Poppy(run_starts_bitarray)
+        self._run_starts = run_starts
 
         runs: List[HuffmanTreeNode] = []
         for i in range(len(run_starts)):
@@ -155,15 +151,36 @@ class Permutation:
 
         self._louds = louds
         self._node_data = node_data
-        self._merge_sort_poppy = Poppy(merge_sort_bitarray)
 
-        number_of_runs = self._run_starts.rank(len(self._run_starts) - 1)
+        # TODO: The choice of "4" lower-order bits here is somewhat arbitrary.
+        # Consider passing it in as a constructor parameter.
+        self._merge_sort_poppy = CompressedRunsBitArray(merge_sort_bitarray, num_lower_bits=4)
+
+        number_of_runs = len(self._run_starts)
         self._run_rank_to_louds_id = [0] * number_of_runs
         for louds_id in range(len(self._node_data)):
             if self._louds.is_leaf(louds_id):
                 run_offset = self._node_data[louds_id]
-                run_rank = self._run_starts.rank(run_offset)
-                self._run_rank_to_louds_id[run_rank - 1] = louds_id
+                run_start = self._get_run_start_position(run_offset)
+                self._run_rank_to_louds_id[run_start] = louds_id
+
+    def _get_run_start_position(self, run_id: int) -> int:
+        low = 0
+        high = len(self._run_starts) - 1
+
+        while low <= high:
+            mid = (low + high) >> 1
+            mid_val = self._run_starts[mid]
+            if mid_val < run_id:
+                low = mid + 1
+            elif mid_val > run_id:
+                high = mid - 1
+            else:
+                break
+
+        if low > high:
+            mid = high
+        return mid
 
     def __getitem__(self, key: int) -> int:
         """
@@ -181,8 +198,10 @@ class Permutation:
 
         Repeat until the current node is the root, and return `k`.
         """
-        run_start = self._run_starts.rank(key) - 1
-        current_node = self._run_rank_to_louds_id[run_start]
+        if not (0 <= key < self._size):
+            raise IndexError(f"Index out of bounds: {key}")
+        run_rank = self._get_run_start_position(key)
+        current_node = self._run_rank_to_louds_id[run_rank]
         key = key - self._node_data[current_node]
 
         while True:

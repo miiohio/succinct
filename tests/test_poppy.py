@@ -110,7 +110,7 @@ def test_l1_layer(byte_value: int, num_bytes: int) -> None:
 
     v = memoryview(bits)
     for byte_offset in range(0, len(v), 8):
-        level_1_idx = 1 + byte_offset // 256
+        level_1_idx = 1 + (byte_offset // 256)
         if level_1_idx < len(level_1):
             level_1[level_1_idx] += popcount(v[byte_offset:byte_offset + 8])
 
@@ -118,8 +118,11 @@ def test_l1_layer(byte_value: int, num_bytes: int) -> None:
         level_1_idx = byte_offset // 256
         level_1[level_1_idx] = 0
 
+    byte_offset = 0
     for i in range(1, len(level_1)):
-        level_1[i] += level_1[i - 1]
+        if byte_offset % (1 << 29) != 0:
+            level_1[i] += level_1[i - 1]
+        byte_offset += 256
 
     poppy = Poppy(bits)
     # Python will literally asplode if we try to use list equality to compare
@@ -261,6 +264,18 @@ def test_select_poppy(bb: bytes) -> None:
 
     for i, pos in enumerate(select_answers):
         assert poppy.select(i) == pos
+
+
+def test_select_binary_search_bug_is_not_present_2020_09_06() -> None:
+    i = 3586
+    bits = bitarray(i)
+    bits.setall(False)
+    bits[0] = True
+    bits[i - 1] = True
+    poppy = Poppy(bits)
+
+    assert poppy.select(0) == 0
+    assert poppy.select(1) == i - 1
 
 
 @pytest.mark.parametrize(
